@@ -38,12 +38,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: TSDoc Action
-        uses: erikyo/tsdoc-action@v1
-        with:
-          source_dir: ./src/*
-          output_dir: ./docs
-          front_page: README.md
+      - name: Generate TypeDoc documentation
+        run: npm run gen:docs
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

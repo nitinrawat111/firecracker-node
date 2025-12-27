@@ -4,6 +4,7 @@
   "description": "A typesafe-api interface for Firecracker micro VMs",
   "scripts": {
     "compile": "tsc",
+    "gen:docs": "typedoc",
     "lint": "eslint . --fix",
     "pretty": "prettier --write .",
     "prepare": "husky"
@@ -15,6 +16,7 @@
     "husky": "^9.1.7",
     "jiti": "^2.6.1",
     "prettier": "^3.7.4",
+    "typedoc": "^0.28.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.1"
   },

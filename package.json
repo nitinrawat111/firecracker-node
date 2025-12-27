@@ -7,7 +7,8 @@
     "gen:docs": "typedoc",
     "lint": "eslint . --fix",
     "pretty": "prettier --write .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "start:firecracker": "rm /tmp/firecracker.socket && firecracker --api-sock /tmp/firecracker.socket"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

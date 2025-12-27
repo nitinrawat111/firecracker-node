@@ -33,3 +33,11 @@ export interface InstanceInfo {
    */
   vmm_version: string;
 }
+
+/**
+ * Represents an error response from the Firecracker API.
+ * @see https://github.com/firecracker-microvm/firecracker/blob/f0691f8253d4bde225b9f70ecabf39b7ad796935/src/firecracker/swagger/firecracker.yaml#L1259
+ */
+export interface FirecrackerAPIError {
+  fault_message: string;
+}

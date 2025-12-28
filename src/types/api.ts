@@ -63,3 +63,22 @@ export type InstanceAction =
 export interface InstanceActionInfo {
   action_type: InstanceAction;
 }
+
+/**
+ * A boot source descriptor
+ * @see https://github.com/firecracker-microvm/firecracker/blob/f0691f8253d4bde225b9f70ecabf39b7ad796935/src/firecracker/swagger/firecracker.yaml#L1029
+ */
+export interface BootSource {
+  /**
+   * Kernel boot arguments
+   */
+  boot_args?: string;
+  /**
+   * Host level path to the kernel image used to boot the guest
+   */
+  initrd_path?: string;
+  /**
+   * Host level path to the initrd image used to boot the guest
+   */
+  kernel_image_path: string;
+}

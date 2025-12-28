@@ -1,5 +1,6 @@
 import Dispatcher from "undici/types/dispatcher";
 import {
+  BootSource,
   FirecrackerAPIError,
   InstanceAction,
   InstanceActionInfo,
@@ -25,21 +26,21 @@ export class FirecrackerAPIClient {
   }
 
   /**
-   * Makes a JSON request to the API.
+   * Makes a request to the API.
    *
-   * Checks that the response status code is in the validStatusCodes array.
-   * If not, throws an Error with the fault_message from the API error response.
+   * - Assumes JSON request body.
+   * - Checks that the response status code is in the validStatusCodes array.
+   * - If not, throws an Error with the fault_message from the API error response.
    *
    * @param options the options for the request. Everything will work except the 'Content-Type' header, which is always set to 'application/json'.
    * @param validStatusCodes array of valid status codes for the response
-   * @returns the JSON response from the API
+   * @returns the response from the API
    * @throws {Error} with the fault_message from the API if the response status code is not valid
-   * @template ResponseBodyType the expected type of the response body
    */
-  protected async jsonRequest<ResponseBodyType extends object>(
+  protected async request(
     options: Dispatcher.RequestOptions,
     validStatusCodes: number[],
-  ): Promise<ResponseBodyType> {
+  ): Promise<Dispatcher.ResponseData> {
     const response = await this.undiciClient.request({
       ...options,
       headers: {
@@ -55,8 +56,31 @@ export class FirecrackerAPIClient {
       throw new Error(`API request failed: ${errorBody.fault_message}`);
     }
 
-    const responseBody = await response.body.json();
-    return responseBody as ResponseBodyType;
+    return response;
+  }
+
+  /**
+   * - Attempts to parse response body as JSON.
+   * - Calls `request()` internally
+   */
+  protected async jsonRequest<ResponseBodyType extends object>(
+    options: Dispatcher.RequestOptions,
+    validStatusCodes: number[],
+  ): Promise<ResponseBodyType> {
+    const response = await this.request(options, validStatusCodes);
+    const responseBody = (await response.body.json()) as ResponseBodyType;
+    return responseBody;
+  }
+
+  /**
+   * - Does not attempt to parse response body.
+   * - Calls `request()` internally
+   */
+  protected async noContentRequest(
+    options: Dispatcher.RequestOptions,
+    validStatusCodes: number[],
+  ): Promise<void> {
+    await this.request(options, validStatusCodes);
   }
 
   /**
@@ -89,7 +113,7 @@ export class FirecrackerAPIClient {
       action_type: action,
     };
 
-    await this.jsonRequest<object>(
+    await this.noContentRequest(
       {
         method: "PUT",
         path: "/actions",
@@ -97,7 +121,23 @@ export class FirecrackerAPIClient {
       },
       [204],
     );
+  }
 
-    // No response body for 204 No Content
+  /**
+   * Creates new boot source if one does not already exist, otherwise updates it.
+   * This is works pre-boot only.
+   * Will fail if update is not possible.
+   * @param bootSource the bootsource
+   */
+  async setBootSource(bootSource: BootSource) {
+    // See https://github.com/firecracker-microvm/firecracker/blob/f0691f8253d4bde225b9f70ecabf39b7ad796935/src/firecracker/swagger/firecracker.yaml#L230
+    await this.noContentRequest(
+      {
+        method: "PUT",
+        path: "/boot-source",
+        body: JSON.stringify(bootSource),
+      },
+      [204],
+    );
   }
 }

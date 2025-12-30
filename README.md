@@ -13,8 +13,7 @@ Take a look at the docs [here](https://nitinrawat111.github.io/firecracker-node/
 ## Quickstart
 
 ```typescript
-import { FirecrackerAPIClient } from "./api/api-client";
-import { InstanceActions } from "./types/api";
+import { FirecrackerAPIClient, InstanceActions } from "firecracker-node";
 
 async function main() {
   // Point to the Firecracker API socket (e.g. /tmp/firecracker.socket)
@@ -37,6 +36,7 @@ async function main() {
   // Start the instance
   await api.startAction(InstanceActions.InstanceStart);
 }
+
 main().catch((err) => {
   console.error("failed to start VM:", err);
 });

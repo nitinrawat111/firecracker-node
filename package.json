@@ -2,12 +2,30 @@
   "name": "firecracker-node",
   "version": "0.0.1",
   "description": "A typesafe-api interface for Firecracker micro VMs",
+  "repository": "https://github.com/nitinrawat111/firecracker-node",
+  "author": {
+    "name": "Nitin Rawat",
+    "email": "rawat.nitin111@gmail.com"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "./dist"
+  ],
   "scripts": {
     "compile": "tsc",
     "gen:docs": "typedoc",
     "lint": "eslint . --fix",
     "pretty": "prettier --write .",
     "prepare": "husky",
+    "prepublishOnly": "npm run compile",
     "start:firecracker": "rm /tmp/firecracker.socket && firecracker --api-sock /tmp/firecracker.socket"
   },
   "devDependencies": {

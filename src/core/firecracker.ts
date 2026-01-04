@@ -233,6 +233,10 @@ export class Firecracker extends FirecrackerAPIClient {
     await Promise.race([pollContinuously(), waitForTimeout()]);
   }
 
+  /**
+   * Kills the Firecracker process and waits for it to exit.
+   *  - If the process is not running, does nothing.
+   */
   async stopFirecrackerProcess(): Promise<void> {
     if (this.firecrackerProcess === undefined) {
       // If process is not running, nothing to do

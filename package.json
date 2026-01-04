@@ -9,7 +9,6 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "module": "./dist/index.js",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -25,8 +24,7 @@
     "lint": "eslint . --fix",
     "pretty": "prettier --write .",
     "prepare": "husky",
-    "prepublishOnly": "npm run compile",
-    "start:firecracker": "rm /tmp/firecracker.socket && firecracker --api-sock /tmp/firecracker.socket"
+    "prepublishOnly": "npm run compile"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

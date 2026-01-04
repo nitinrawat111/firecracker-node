@@ -15,6 +15,9 @@ import { Client } from "undici";
  * API Client for interacting with the Firecracker API over a Unix socket.
  */
 export class FirecrackerAPIClient {
+  /**
+   * The Undici HTTP client configured to connect over the provided Unix socket.
+   */
   protected undiciClient: Client;
 
   /**

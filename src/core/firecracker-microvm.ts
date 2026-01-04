@@ -7,12 +7,21 @@ import {
 import { unlink } from "fs/promises";
 
 /**
- * Represents a firecracker instance.
+ * Represents a firecracker microVM instance.
  *  - Before calling any API methods, ensure that the firecracker process is spawned using spawnFirecrackerProcess().
  *  - After finishing with the instance, call stopFirecrackerProcess() to clean up the process.
+ *
+ * @note This makes API calls for each configuration change. Use FirecrackerLauncher for easier microVM setup.
  */
-export class Firecracker extends FirecrackerAPIClient {
-  protected initParams: FirecrackerInitParams;
+export class FirecrackerMicroVM extends FirecrackerAPIClient {
+  /**
+   * Initialization parameters for the Firecracker process.
+   * Defaults are taken from DefaultFirecrackerInitParams.
+   */
+  protected initParams: FirecrackerInitParams = DefaultFirecrackerInitParams;
+  /**
+   * The spawned Firecracker process.
+   */
   protected firecrackerProcess?: ChildProcess;
 
   /**
@@ -30,7 +39,7 @@ export class Firecracker extends FirecrackerAPIClient {
     this.initParams = {
       // This is done to ensure that any missing parameters in initParams are filled with defaults
       // Firecracker will use the default values if not provided
-      // But we also want to have the default values available in this.firecrackerInitParams
+      // But we also want to have the default values available in this.initParams
       ...DefaultFirecrackerInitParams,
       ...initParams,
     };
@@ -181,7 +190,7 @@ export class Firecracker extends FirecrackerAPIClient {
    *  - Waits until the Firecracker API is ready to accept requests before returning.
    *  - If the API does not become ready within 5 seconds, throws an error.
    *
-   * @param removeExistingSocket whether to remove an existing socket file before starting the process
+   * @param removeExistingSocket whether to remove an existing socket file before starting the process. This is useful to ensure that a stale socket does not prevent the Firecracker process from starting.
    */
   async spawnFirecrackerProcess(removeExistingSocket: boolean): Promise<void> {
     if (this.firecrackerProcess !== undefined) {

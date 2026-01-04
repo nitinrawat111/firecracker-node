@@ -1,0 +1,34 @@
+# Workflow for publishing to npm
+# Referenced from https://docs.npmjs.com/trusted-publishers#github-actions-configuration
+name: Publish to npm
+
+on:
+  release:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  id-token: write # Required for OIDC
+  contents: read # Required for actions/checkout
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      # Prepublish script will handle the compiling
+      - name: Publish to npm
+        run: npm publish

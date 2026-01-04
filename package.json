@@ -1,7 +1,7 @@
 {
   "name": "firecracker-node",
-  "version": "0.0.1",
-  "description": "A typesafe-api interface for Firecracker micro VMs",
+  "version": "0.0.2",
+  "description": "Type-safe TypeScript SDK for Firecracker microVMs",
   "repository": "https://github.com/nitinrawat111/firecracker-node",
   "author": {
     "name": "Nitin Rawat",

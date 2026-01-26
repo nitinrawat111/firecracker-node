@@ -1,6 +1,6 @@
 {
   "name": "firecracker-node",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Type-safe TypeScript SDK for Firecracker microVMs",
   "repository": "https://github.com/nitinrawat111/firecracker-node",
   "author": {

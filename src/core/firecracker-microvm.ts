@@ -270,6 +270,12 @@ export class FirecrackerMicroVM {
       );
     }
 
+    if (microVMConfig.vsock !== undefined) {
+      await firecrackerMicroVM.apiClient.createOrUpdateVsock(
+        microVMConfig.vsock,
+      );
+    }
+
     await firecrackerMicroVM.apiClient.startAction(
       InstanceActions.InstanceStart,
     );
@@ -277,10 +283,6 @@ export class FirecrackerMicroVM {
     firecrackerMicroVM.isRunning = true;
     return firecrackerMicroVM;
   }
-
-  // =========================================================================
-  // Post-boot methods
-  // =========================================================================
 
   /**
    * Throws an error if the VM has been stopped.

@@ -8,6 +8,7 @@ import {
   InstanceInfo,
   MachineConfiguration,
   PartialDrive,
+  Vsock,
 } from "../types/api";
 import { Client } from "undici";
 
@@ -290,6 +291,29 @@ export class FirecrackerAPIClient {
         method: "PATCH",
         path: "/machine-config",
         body: JSON.stringify(machineConfig),
+      },
+      [204],
+    );
+  }
+
+  /**
+   * Creates or updates a vsock device.
+   * Pre-boot only.
+   *
+   * The first call creates the device with the configuration specified.
+   * Subsequent calls will update the device configuration.
+   * May fail if update is not possible.
+   *
+   * @param vsock The vsock device configuration
+   * @throws {Error} with the fault_message from the API
+   */
+  async createOrUpdateVsock(vsock: Vsock): Promise<void> {
+    // See https://github.com/firecracker-microvm/firecracker/blob/49526986bee32024dc8762ce1c36f5697fee2342/src/firecracker/swagger/firecracker.yaml#L845
+    await this.noContentRequest(
+      {
+        method: "PUT",
+        path: "/vsock",
+        body: JSON.stringify(vsock),
       },
       [204],
     );

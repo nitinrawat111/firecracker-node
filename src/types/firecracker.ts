@@ -1,4 +1,4 @@
-import { BootSource, Drive, MachineConfiguration } from "./api";
+import { BootSource, Drive, MachineConfiguration, Vsock } from "./api";
 
 /**
  * Represents the possible log levels for Firecracker.
@@ -174,4 +174,10 @@ export interface MicroVMConfig {
    * Machine configuration
    */
   machineConfig?: MachineConfiguration;
+
+  /**
+   * Vsock device configuration for guest-host communication.
+   * Optional. If provided, a vsock device will be attached to the microVM.
+   */
+  vsock?: Vsock;
 }

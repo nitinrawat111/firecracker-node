@@ -3,50 +3,77 @@ import { FirecrackerAPIClient } from "../api/api-client";
 import {
   DefaultFirecrackerInitParams,
   FirecrackerInitParams,
+  MicroVMConfig,
 } from "../types/firecracker";
 import { unlink } from "fs/promises";
+import {
+  InstanceActions,
+  InstanceInfo,
+  MachineConfiguration,
+  PartialDrive,
+} from "../types/api";
+import { existsSync } from "fs";
 
 /**
- * Represents a firecracker microVM instance.
- *  - Before calling any API methods, ensure that the firecracker process is spawned using spawnFirecrackerProcess().
- *  - After finishing with the instance, call stopFirecrackerProcess() to clean up the process.
+ * Represents a running Firecracker microVM instance.
  *
- * @note This makes API calls for each configuration change. Use FirecrackerLauncher for easier microVM setup.
+ * Use the static `create()` method to spawn and boot a microVM.
+ * This class only exposes post-boot methods.
  */
-export class FirecrackerMicroVM extends FirecrackerAPIClient {
+export class FirecrackerMicroVM {
   /**
-   * Initialization parameters for the Firecracker process.
-   * Defaults are taken from DefaultFirecrackerInitParams.
+   * The API client for communicating with the Firecracker process.
    */
-  protected initParams: FirecrackerInitParams = DefaultFirecrackerInitParams;
+  private apiClient: FirecrackerAPIClient;
+
   /**
    * The spawned Firecracker process.
    */
-  protected firecrackerProcess?: ChildProcess;
+  private firecrackerProcess: ChildProcess | null;
 
   /**
-   * Initializes the configuration for Firecracker instance. It does not start the microVM (or firecracker process) yet.
-   *
-   * To actually start the microVM, call spawnFirecrackerProcess().
-   *
-   * @param initParams the initialization parameters for the Firecracker process
+   * Initialization parameters for the Firecracker process.
    */
-  constructor(initParams?: FirecrackerInitParams) {
-    const socketPath =
-      initParams?.apiSock ?? DefaultFirecrackerInitParams.apiSock;
-    super(socketPath);
+  private firecrackerInitParams: FirecrackerInitParams;
 
-    this.initParams = {
-      // This is done to ensure that any missing parameters in initParams are filled with defaults
-      // Firecracker will use the default values if not provided
-      // But we also want to have the default values available in this.initParams
+  /**
+   * MicroVM configuration.
+   */
+  private microVMConfig: MicroVMConfig;
+
+  /**
+   * Whether the VM is running or not.
+   */
+  private isRunning: boolean = false;
+
+  /**
+   * Private constructor - use `FirecrackerMicroVM.create()` to create an instance.
+   * @param firecrackerInitParams Firecracker process initialization parameters
+   * @param microVMConfig The microVM configuration
+   */
+  private constructor(
+    // TODO: Use Required<FirecrackerInitParams> after setting defaults. Same for MicroVMConfig
+    firecrackerInitParams: FirecrackerInitParams,
+    microVMConfig: MicroVMConfig,
+  ) {
+    const socketPath =
+      firecrackerInitParams.apiSock ?? DefaultFirecrackerInitParams.apiSock;
+
+    this.firecrackerInitParams = {
+      // This is done to ensure consistent state at runtime (if nothing is provided, runtime should dictate defaults)
       ...DefaultFirecrackerInitParams,
-      ...initParams,
+      ...firecrackerInitParams,
     };
+
+    // TODO: Setup Default values for microVMConfig
+    this.microVMConfig = microVMConfig;
+
+    this.apiClient = new FirecrackerAPIClient(socketPath);
+    this.firecrackerProcess = spawn("firecracker", this.buildFirecrackerArgs());
   }
 
   /**
-   * Builds the command line arguments array for the Firecracker binary based on initParams.
+   * Builds the command line arguments array for the Firecracker binary based on firecrackerInitParams.
    * This follows the same logic as the Rust ArgParser in the Firecracker source.
    * @see https://github.com/firecracker-microvm/firecracker/blob/f0691f8253d4bde225b9f70ecabf39b7ad796935/src/firecracker/src/main.rs#L144
    */
@@ -54,130 +81,139 @@ export class FirecrackerMicroVM extends FirecrackerAPIClient {
     const args: string[] = [];
 
     // --api-sock
-    if (typeof this.initParams.apiSock === "string") {
-      args.push("--api-sock", this.initParams.apiSock);
+    if (typeof this.firecrackerInitParams.apiSock === "string") {
+      args.push("--api-sock", this.firecrackerInitParams.apiSock);
     }
 
     // --id
-    if (typeof this.initParams.id === "string") {
-      args.push("--id", this.initParams.id);
+    if (typeof this.firecrackerInitParams.id === "string") {
+      args.push("--id", this.firecrackerInitParams.id);
     }
 
     // --seccomp-filter
     // TODO: Validate this if noSeccomp is provided
-    if (typeof this.initParams.seccompFilter === "string") {
-      args.push("--seccomp-filter", this.initParams.seccompFilter);
+    if (typeof this.firecrackerInitParams.seccompFilter === "string") {
+      args.push("--seccomp-filter", this.firecrackerInitParams.seccompFilter);
     }
 
     // --no-seccomp
-    if (this.initParams.noSeccomp === true) {
+    if (this.firecrackerInitParams.noSeccomp === true) {
       args.push("--no-seccomp");
     }
 
     // --start-time-us
-    if (typeof this.initParams.startTimeUs === "number") {
-      args.push("--start-time-us", this.initParams.startTimeUs.toString());
+    if (typeof this.firecrackerInitParams.startTimeUs === "number") {
+      args.push(
+        "--start-time-us",
+        this.firecrackerInitParams.startTimeUs.toString(),
+      );
     }
 
     // --start-time-cpu-us
-    if (typeof this.initParams.startTimeCpuUs === "number") {
+    if (typeof this.firecrackerInitParams.startTimeCpuUs === "number") {
       args.push(
         "--start-time-cpu-us",
-        this.initParams.startTimeCpuUs.toString(),
+        this.firecrackerInitParams.startTimeCpuUs.toString(),
       );
     }
 
     // --parent-cpu-time-us
-    if (typeof this.initParams.parentCPUTimeUs === "number") {
+    if (typeof this.firecrackerInitParams.parentCPUTimeUs === "number") {
       args.push(
         "--parent-cpu-time-us",
-        this.initParams.parentCPUTimeUs.toString(),
+        this.firecrackerInitParams.parentCPUTimeUs.toString(),
       );
     }
 
     // --config-file
-    if (typeof this.initParams.configFile === "string") {
-      args.push("--config-file", this.initParams.configFile);
+    if (typeof this.firecrackerInitParams.configFile === "string") {
+      args.push("--config-file", this.firecrackerInitParams.configFile);
     }
 
     // --metadata
-    if (typeof this.initParams.metadataFile === "string") {
-      args.push("--metadata", this.initParams.metadataFile);
+    if (typeof this.firecrackerInitParams.metadataFile === "string") {
+      args.push("--metadata", this.firecrackerInitParams.metadataFile);
     }
 
     // --no-api (requires --config-file)
     if (
-      this.initParams.noApi === true &&
-      typeof this.initParams.configFile === "string"
+      this.firecrackerInitParams.noApi === true &&
+      typeof this.firecrackerInitParams.configFile === "string"
     ) {
       args.push("--no-api");
     }
 
     // --log-path
-    if (typeof this.initParams.logPath === "string") {
-      args.push("--log-path", this.initParams.logPath);
+    if (typeof this.firecrackerInitParams.logPath === "string") {
+      args.push("--log-path", this.firecrackerInitParams.logPath);
     }
 
     // --level
-    if (typeof this.initParams.level === "string") {
-      args.push("--level", this.initParams.level);
+    if (typeof this.firecrackerInitParams.level === "string") {
+      args.push("--level", this.firecrackerInitParams.level);
     }
 
     // --module
-    if (typeof this.initParams.module === "string") {
-      args.push("--module", this.initParams.module);
+    if (typeof this.firecrackerInitParams.module === "string") {
+      args.push("--module", this.firecrackerInitParams.module);
     }
 
     // --show-level
-    if (this.initParams.showLevel === true) {
+    if (this.firecrackerInitParams.showLevel === true) {
       args.push("--show-level");
     }
 
     // --show-log-origin
-    if (this.initParams.showLogOrigin === true) {
+    if (this.firecrackerInitParams.showLogOrigin === true) {
       args.push("--show-log-origin");
     }
 
     // --metrics-path
-    if (typeof this.initParams.metricsPath === "string") {
-      args.push("--metrics-path", this.initParams.metricsPath);
+    if (typeof this.firecrackerInitParams.metricsPath === "string") {
+      args.push("--metrics-path", this.firecrackerInitParams.metricsPath);
     }
 
     // --boot-timer
-    if (this.initParams.bootTimer === true) {
+    if (this.firecrackerInitParams.bootTimer === true) {
       args.push("--boot-timer");
     }
 
     // --version
-    if (this.initParams.version === true) {
+    if (this.firecrackerInitParams.version === true) {
       args.push("--version");
     }
 
     // --snapshot-version
-    if (this.initParams.snapshotVersion === true) {
+    if (this.firecrackerInitParams.snapshotVersion === true) {
       args.push("--snapshot-version");
     }
 
     // --describe-snapshot
-    if (typeof this.initParams.describeSnapshot === "string") {
-      args.push("--describe-snapshot", this.initParams.describeSnapshot);
+    if (typeof this.firecrackerInitParams.describeSnapshot === "string") {
+      args.push(
+        "--describe-snapshot",
+        this.firecrackerInitParams.describeSnapshot,
+      );
     }
 
     // --http-api-max-payload-size (has default)
-    if (typeof this.initParams.httpApiMaxPayloadSize === "number") {
+    if (typeof this.firecrackerInitParams.httpApiMaxPayloadSize === "number") {
       args.push(
         "--http-api-max-payload-size",
-        this.initParams.httpApiMaxPayloadSize.toString(),
+        this.firecrackerInitParams.httpApiMaxPayloadSize.toString(),
       );
     }
 
     // --mmds-size-limit
-    if (typeof this.initParams.mmdsSizeLimit === "number") {
-      args.push("--mmds-size-limit", this.initParams.mmdsSizeLimit.toString());
+    if (typeof this.firecrackerInitParams.mmdsSizeLimit === "number") {
+      args.push(
+        "--mmds-size-limit",
+        this.firecrackerInitParams.mmdsSizeLimit.toString(),
+      );
     }
 
     // --enable-pci
-    if (this.initParams.enablePci === true) {
+    if (this.firecrackerInitParams.enablePci === true) {
       args.push("--enable-pci");
     }
 
@@ -185,71 +221,119 @@ export class FirecrackerMicroVM extends FirecrackerAPIClient {
   }
 
   /**
-   * Spawns a firecracker process
-   *  - Does nothing if the process is already spawned.
-   *  - Waits until the Firecracker API is ready to accept requests before returning.
-   *  - If the API does not become ready within 5 seconds, throws an error.
+   * Creates and boots a new Firecracker microVM.
    *
-   * @param removeExistingSocket whether to remove an existing socket file before starting the process. This is useful to ensure that a stale socket does not prevent the Firecracker process from starting.
+   * This method:
+   * 1. Creates a new FirecrackerMicroVM instance which internally
+   *     - Spawns the Firecracker process
+   *     - Creates the API client to communicate with the process
+   * 2. Then, waits for the API to be ready
+   * 3. Configures boot source, drives, and machine configuration
+   * 4. Starts the microVM and returns a running instance
+   *
+   * @param firecrackerInitParams Firecracker process initialization parameters
+   * @param vmConfig The microVM configuration
+   * @param cleanupExistingSocket Whether to clean up an existing socket file before starting the VM (default: true)
+   * @returns A running FirecrackerMicroVM instance
+   * @throws {Error} If the configuration is invalid or if the API/VM fails to start
    */
-  async spawnFirecrackerProcess(removeExistingSocket: boolean): Promise<void> {
-    if (this.firecrackerProcess !== undefined) {
-      // Process already spawned
-      return;
+  static async create(
+    firecrackerInitParams: FirecrackerInitParams,
+    microVMConfig: MicroVMConfig,
+    cleanupExistingSocket: boolean = true,
+  ): Promise<FirecrackerMicroVM> {
+    if (microVMConfig.drives.length === 0) {
+      throw new Error("At least one drive is required");
     }
 
-    if (removeExistingSocket === true) {
-      // Try to remove existing socket file
-      await unlink(
-        this.initParams.apiSock ?? DefaultFirecrackerInitParams.apiSock,
+    const socketPath =
+      firecrackerInitParams.apiSock ?? DefaultFirecrackerInitParams.apiSock;
+    if (cleanupExistingSocket === true && existsSync(socketPath)) {
+      await unlink(socketPath);
+    }
+
+    const firecrackerMicroVM = new FirecrackerMicroVM(
+      firecrackerInitParams,
+      microVMConfig,
+    );
+    await firecrackerMicroVM.apiClient.waitForAPIToBeReady();
+    await firecrackerMicroVM.apiClient.setBootSource(microVMConfig.bootSource);
+    await Promise.all(
+      microVMConfig.drives.map((drive) =>
+        firecrackerMicroVM.apiClient.createOrUpdateDrive(drive),
+      ),
+    );
+
+    if (microVMConfig.machineConfig !== undefined) {
+      await firecrackerMicroVM.apiClient.setMachineConfiguration(
+        microVMConfig.machineConfig,
       );
     }
 
-    this.firecrackerProcess = spawn("firecracker", this.buildFirecrackerArgs());
+    await firecrackerMicroVM.apiClient.startAction(
+      InstanceActions.InstanceStart,
+    );
 
-    /////////////////////////////////////////////////////////////////////////
-    // We want to make sure that firecracker is ready to accept API
-    // Two possible ways:
-    // 1. Reading stdout for the "API socket listening" message
-    // 2. Polling the API until it responds
-    // We go with API polling + timeout for more reliability
-    /////////////////////////////////////////////////////////////////////////
+    firecrackerMicroVM.isRunning = true;
+    return firecrackerMicroVM;
+  }
 
-    // Create an abort controller to stop polling when timeout occurs
-    const abortController = new AbortController();
-    const pollContinuously = async () => {
-      while (abortController.signal.aborted === false) {
-        try {
-          await this.getInstanceInfo();
-          break; // Exit loop if successful
-        } catch {
-          // Ignore errors and keep polling
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    };
+  // =========================================================================
+  // Post-boot methods
+  // =========================================================================
 
-    const waitForTimeout = () => {
-      return new Promise<void>((_, reject) => {
-        setTimeout(() => {
-          abortController.abort();
-          reject(new Error("Timeout waiting for Firecracker API to be ready"));
-        }, 5000);
-      });
-    };
-
-    // Whichever completes first: polling success or timeout
-    await Promise.race([pollContinuously(), waitForTimeout()]);
+  /**
+   * Throws an error if the VM has been stopped.
+   */
+  private assertRunning(): void {
+    if (this.isRunning === false) {
+      throw new Error(
+        "This FirecrackerMicroVM instance is not running. Create a new instance to start another VM.",
+      );
+    }
   }
 
   /**
-   * Kills the Firecracker process and waits for it to exit.
-   *  - If the process is not running, does nothing.
+   * Returns general information about the running instance.
+   * @returns The instance information
+   * @throws {Error} If the VM has been stopped
    */
-  async stopFirecrackerProcess(): Promise<void> {
-    if (this.firecrackerProcess === undefined) {
-      // If process is not running, nothing to do
-      return;
+  async getInstanceInfo(): Promise<InstanceInfo> {
+    this.assertRunning();
+    return this.apiClient.getInstanceInfo();
+  }
+
+  /**
+   * Gets the machine configuration of the VM.
+   * @returns The machine configuration
+   * @throws {Error} If the VM has been stopped
+   */
+  async getMachineConfiguration(): Promise<MachineConfiguration> {
+    this.assertRunning();
+    return this.apiClient.getMachineConfiguration();
+  }
+
+  /**
+   * Updates the properties of a drive.
+   * This can be used to change the backing file or rate limiter of a drive post-boot.
+   * @param partialDrive The drive properties to update
+   * @throws {Error} If the VM has been stopped
+   */
+  async updateDriveProperties(partialDrive: PartialDrive): Promise<void> {
+    this.assertRunning();
+    return this.apiClient.updateDriveProperties(partialDrive);
+  }
+
+  /**
+   * Stops the Firecracker microVM and cleans up resources.
+   * This kills the Firecracker process, removes the socket file and closes the API client connection.
+   *
+   * After calling this method, the instance is no longer usable.
+   * Any subsequent method calls will throw an error.
+   */
+  async cleanup(): Promise<void> {
+    if (this.isRunning === false) {
+      return; // Already stopped, nothing to do
     }
 
     // Promise which waits for process to actually exit
@@ -260,9 +344,16 @@ export class FirecrackerMicroVM extends FirecrackerAPIClient {
     });
 
     // Kill the process and wait for it to exit
-    this.firecrackerProcess.kill();
+    this.firecrackerProcess?.kill();
     await waitForExit;
+    this.firecrackerProcess = null;
 
-    this.firecrackerProcess = undefined;
+    // Clean up socket file
+    const socketPath =
+      this.firecrackerInitParams.apiSock ??
+      DefaultFirecrackerInitParams.apiSock;
+
+    await unlink(socketPath);
+    await this.apiClient.cleanup();
   }
 }

@@ -32,6 +32,50 @@ export class FirecrackerAPIClient {
   }
 
   /**
+   * Waits for firecracker API to be ready.
+   *
+   * This is method is useful when the firecracker process is just started
+   * and we need to wait until the API is ready before making any requests.
+   * @param timeoutMs the maximum time to wait for the API to be ready, in milliseconds. Default is 5000ms.
+   * @throws {Error} if the API is not ready within the specified timeout
+   */
+  async waitForAPIToBeReady(timeoutMs: number = 5000): Promise<void> {
+    /////////////////////////////////////////////////////////////////////////
+    // We want to make sure that firecracker is ready to accept API
+    // Two possible ways:
+    // 1. Reading stdout for the "API socket listening" message
+    // 2. Polling the API until it responds
+    // We go with API polling + timeout for more reliability
+    /////////////////////////////////////////////////////////////////////////
+
+    // Create an abort controller to stop polling when timeout occurs
+    const abortController = new AbortController();
+    const pollContinuously = async () => {
+      while (abortController.signal.aborted === false) {
+        try {
+          await this.getInstanceInfo();
+          break; // Exit loop if successful
+        } catch {
+          // Ignore errors and keep polling
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+
+    const waitForTimeout = () => {
+      return new Promise<void>((_, reject) => {
+        setTimeout(() => {
+          abortController.abort();
+          reject(new Error("Timeout waiting for Firecracker API to be ready"));
+        }, timeoutMs);
+      });
+    };
+
+    // Whichever completes first: polling success or timeout
+    await Promise.race([pollContinuously(), waitForTimeout()]);
+  }
+
+  /**
    * Makes a request to the API.
    *
    * - Assumes JSON request body.
@@ -249,5 +293,14 @@ export class FirecrackerAPIClient {
       },
       [204],
     );
+  }
+
+  /**
+   * Cleans up the API client by closing the underlying HTTP connection.
+   * @note Make sure to not call API methods after calling this!
+   * @todo add more intuitive cleanup pipeline
+   */
+  async cleanup() {
+    await this.undiciClient.close();
   }
 }

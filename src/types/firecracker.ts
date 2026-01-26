@@ -1,8 +1,4 @@
-export interface FirecrackerConstructorParams {
-  socketPath: string;
-  baseUrl?: string;
-  enablePCI?: boolean;
-}
+import { BootSource, Drive, MachineConfiguration } from "./api";
 
 /**
  * Represents the possible log levels for Firecracker.
@@ -158,3 +154,24 @@ export const DefaultFirecrackerInitParams = {
   id: "anonymous-instance",
   httpApiMaxPayloadSize: 51200,
 } as const satisfies FirecrackerInitParams;
+
+/**
+ * Configuration for the microVM itself
+ */
+export interface MicroVMConfig {
+  /**
+   * Boot source configuration
+   */
+  bootSource: BootSource;
+
+  /**
+   * Drives to attach to the microVM.
+   * At least one drive is required.
+   */
+  drives: Drive[];
+
+  /**
+   * Machine configuration
+   */
+  machineConfig?: MachineConfiguration;
+}

@@ -10,7 +10,7 @@
     in {
       devShells.${system}.default = pkgs.mkShell {
         # nixfmt-classic is included to format Nix files
-        packages = [ pkgs.nixfmt-classic pkgs.nodejs_24 pkgs.firecracker ];
+        packages = [ pkgs.nixfmt-classic pkgs.nodejs_24 pkgs.firecracker pkgs.yarn ];
       };
     };
 }

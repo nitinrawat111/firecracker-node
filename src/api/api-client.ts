@@ -42,7 +42,7 @@ export class FirecrackerAPIClient {
    */
   async waitForAPIToBeReady(timeoutMs: number = 5000): Promise<void> {
     /////////////////////////////////////////////////////////////////////////
-    // We want to make sure that firecracker is ready to accept API
+    // We want to make sure that firecracker is ready to accept API requests
     // Two possible ways:
     // 1. Reading stdout for the "API socket listening" message
     // 2. Polling the API until it responds
